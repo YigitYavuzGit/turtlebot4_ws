@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!--
+    IMU noise params:
+      ori_stddev:      rad
+      ang_vel_stddev:  rad/s
+      lin_acc_stddev:  m/s^2
+  -->
+  <xacro:macro name="tb4_imu"
+               params="name parent_link update_rate:=100
+                       ori_stddev:=0
+                       ang_vel_stddev:=0.01
+                       lin_acc_stddev:=0.05
+                       *origin">
+
+    <link name="${name}_link"/>
+
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent_link}"/>
+      <child  link="${name}_link"/>
+      <xacro:insert_block name="origin"/>
+    </joint>
+
+    <gazebo reference="${name}_link">
+      <sensor type="imu" name="${name}">
+        <always_on>true</always_on>
+        <update_rate>${update_rate}</update_rate>
+        <topic>${name}</topic>
+
+        <imu>
+          <!-- 
+          <orientation>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>${ori_stddev}</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>${ori_stddev}</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>${ori_stddev}</stddev></noise></z>
+          </orientation>
+          -->
+          
+
+          <!-- Angular velocity noise -->
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>${ang_vel_stddev}</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>${ang_vel_stddev}</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>${ang_vel_stddev}</stddev></noise></z>
+          </angular_velocity>
+
+          <!-- Linear acceleration noise -->
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0.0</mean><stddev>${lin_acc_stddev}</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0.0</mean><stddev>${lin_acc_stddev}</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0.0</mean><stddev>${lin_acc_stddev}</stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+</robot>

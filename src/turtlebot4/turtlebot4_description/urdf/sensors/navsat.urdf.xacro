@@ -1,0 +1,50 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <!--
+    NavSat noise params:
+      horiz_stddev: meters
+      vert_stddev:  meters
+  -->
+  <xacro:macro name="tb4_navsat"
+               params="name parent_link update_rate:=50
+                       horiz_stddev:=0.005
+                       vert_stddev:=0.005
+                       *origin">
+
+    <link name="${name}_link"/>
+
+    <joint name="${name}_joint" type="fixed">
+      <parent link="${parent_link}"/>
+      <child  link="${name}_link"/>
+      <xacro:insert_block name="origin"/>
+    </joint>
+
+    <gazebo reference="${name}_link">
+      <sensor name="${name}" type="navsat">
+        <always_on>true</always_on>
+        <update_rate>${update_rate}</update_rate>
+        <topic>${name}</topic>
+
+        <navsat>
+          <position_sensing>
+            <horizontal>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>${horiz_stddev}</stddev>
+              </noise>
+            </horizontal>
+            <vertical>
+              <noise type="gaussian">
+                <mean>0.0</mean>
+                <stddev>${vert_stddev}</stddev>
+              </noise>
+            </vertical>
+          </position_sensing>
+        </navsat>
+
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+</robot>
