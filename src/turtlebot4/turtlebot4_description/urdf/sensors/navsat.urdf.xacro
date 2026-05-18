@@ -5,11 +5,15 @@
     NavSat noise params:
       horiz_stddev: meters
       vert_stddev:  meters
+      horiz_stddev:=0.005
+      vert_stddev:=0.005
+
+      hocanın verdiği değerler ama metre değil degree ye tekabül ediyormuş yani 0.005 × 111,320 m ≈ ~556 meters.
   -->
   <xacro:macro name="tb4_navsat"
                params="name parent_link update_rate:=50
-                       horiz_stddev:=0.000
-                       vert_stddev:=0.000
+                       horiz_stddev:=0.00000135
+                       vert_stddev:=0.00000135
                        *origin">
 
     <link name="${name}_link"/>

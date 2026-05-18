@@ -51,8 +51,8 @@ class ControlNode(Node):
 
 
         self.pos_tol = 0.25   # meters
-        self.yaw_tol = 0.05   # rad
-        #self.yaw_tol = 0.05   # hocanın verdiği değer
+        #self.yaw_tol = 0.05   # navsat noise olmadan test değeri
+        self.yaw_tol = 0.15   # hocanın verdiği değer
 
     
         self.max_lin = 0.30   # m/s
@@ -60,7 +60,7 @@ class ControlNode(Node):
 
         # distance PID and heading PID
         self.pid_dist = PID(kp=0.6, ki=0.0, kd=0.1, i_limit=1.0)
-        self.pid_yaw  = PID(kp=2.2, ki=0.0, kd=0.2, i_limit=1.0)
+        self.pid_yaw  = PID(kp=0.6, ki=0.0, kd=0.2, i_limit=1.0)
 
         # ---- State ----
         self.have_ref = False
@@ -165,7 +165,7 @@ class ControlNode(Node):
 
         if abs(yaw_err) > self.yaw_tol:
             
-            self.pid_dist.reset()
+            #self.pid_dist.reset()
             
             w = self.pid_yaw.step(yaw_err, dt)
 
