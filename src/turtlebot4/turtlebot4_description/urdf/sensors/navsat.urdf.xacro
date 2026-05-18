@@ -8,8 +8,8 @@
   -->
   <xacro:macro name="tb4_navsat"
                params="name parent_link update_rate:=50
-                       horiz_stddev:=0.005
-                       vert_stddev:=0.005
+                       horiz_stddev:=0.000
+                       vert_stddev:=0.000
                        *origin">
 
     <link name="${name}_link"/>

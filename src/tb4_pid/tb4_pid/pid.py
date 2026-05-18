@@ -4,6 +4,8 @@ from rclpy.node import Node
 
 from custom_interfaces.msg import GoalPose
 from geometry_msgs.msg import TwistStamped
+from custom_interfaces.msg import KalmanPose
+
 
 def wrap_pi(a: float) -> float:
     while a > math.pi:
@@ -49,7 +51,9 @@ class ControlNode(Node):
 
 
         self.pos_tol = 0.25   # meters
-        self.yaw_tol = 0.15   # rad
+        self.yaw_tol = 0.05   # rad
+        #self.yaw_tol = 0.05   # hocanın verdiği değer
+
     
         self.max_lin = 0.30   # m/s
         self.max_ang = 1.20   # rad/s
@@ -71,15 +75,22 @@ class ControlNode(Node):
         self.last_t = self.get_clock().now()
     
         self.create_subscription(GoalPose, "/goal_pose", self.goalPoseCallback,10)
-        
+        self.create_subscription(KalmanPose, "/kalman_pose", self.kalmanPoseCallback, 10)
+
+
         self.get_logger().info("Waiting for goal_pose to be published")
 
 
         self.cmd_pub = self.create_publisher(TwistStamped, "/cmd_vel", 10)
 
-        self.create_timer(0.05, self.control_loop)
+        self.create_timer(0.1, self.control_loop)
 
         #self.get_logger().info(f"Target set to local (x,y)=({self.target_x:.2f},{self.target_y:.2f}) meters.")
+
+    def kalmanPoseCallback (self, msg: KalmanPose):
+        self.x = msg.x_kalman_est
+        self.y = msg.y_kalman_est
+        self.yaw = msg.yaw_kalman_est
 
     def goalPoseCallback(self, msg: GoalPose):
         
@@ -87,20 +98,15 @@ class ControlNode(Node):
             self.target_x = msg.x
             self.target_y = msg.y
 
-            self.target_yaw = msg.theta
+            self.target_yaw = msg.yaw
 
             self.have_target= True
         
-            self.get_logger().info(f'goal_pose set to: x={self.target_x}, y={self.target_y}, theta={self.target_yaw}') 
+            self.get_logger().info(f'goal_pose set to: x={self.target_x}, y={self.target_y}, yaw={self.target_yaw}') 
         else:
             return    
 
-    def publish_stop(self):
-        cmd = TwistStamped()
-        cmd.header.stamp = self.get_clock().now().to_msg()
-        cmd.twist.linear.x = 0.0
-        cmd.twist.angular.z = 0.0
-        self.cmd_pub.publish(cmd)
+    
 
     def control_loop(self):
         # need both position and yaw
@@ -112,7 +118,6 @@ class ControlNode(Node):
             self.yaw=0
             self.have_ref= True
 
-        self.get_logger().info(f"x={self.x}, y={self.y}, yaw={self.yaw}")
 
         now = self.get_clock().now()
         dt = (now - self.last_t).nanoseconds * 1e-9
@@ -122,33 +127,69 @@ class ControlNode(Node):
         dy = self.target_y - self.y
         dist = math.hypot(dx, dy)
 
+        #desired_yaw = self.target_yaw
         desired_yaw = math.atan2(dy, dx)
         yaw_err = wrap_pi(desired_yaw - self.yaw)
 
+        self.get_logger().info(f"DIST={dist} x={self.x}, y={self.y}, yaw={self.yaw}")
+
+        #and yaw_err < self.yaw_tol:  
+        # self.publish_stop()
+        # self.get_logger().info("stop conditions met, stopping...")
+
         # Stop condition
-        if dist < self.pos_tol:
-            self.publish_stop()
+        if dist > self.pos_tol:
+            # PID outputs
+            v = self.pid_dist.step(dist, dt)
+            w = self.pid_yaw.step(yaw_err, dt)
+
+            # Gate forward speed if facing away
+            # (helps “turn then go” behavior)
+            heading_scale = max(0.0, math.cos(yaw_err))
+            v *= heading_scale
+
+            # Clamp
+            v = max(-self.max_lin, min(self.max_lin, v))
+            w = max(-self.max_ang, min(self.max_ang, w))
+
+            cmd = TwistStamped()
+            cmd.header.stamp = now.to_msg()
+            cmd.twist.linear.x = v
+            cmd.twist.angular.z = w
+            self.cmd_pub.publish(cmd)
+            self.get_logger().info(f"publishing angular z (yaw):{cmd.twist.angular.z} linear: x:{cmd.twist.linear.x} y:{cmd.twist.linear.y}")
+            
+            return
+        
+        yaw_err = wrap_pi(self.target_yaw - self.yaw)
+
+        if abs(yaw_err) > self.yaw_tol:
+            
+            self.pid_dist.reset()
+            
+            w = self.pid_yaw.step(yaw_err, dt)
+
+            w = max(-self.max_ang, min(self.max_ang, w))
+
+            cmd = TwistStamped()
+            cmd.header.stamp = now.to_msg()
+            cmd.twist.linear.x = 0.0
+            cmd.twist.angular.z = w
+            self.cmd_pub.publish(cmd)
+            self.get_logger().info(f"publishing angular z only (yaw):{cmd.twist.angular.z}")
+            
             return
 
-        # PID outputs
-        v = self.pid_dist.step(dist, dt)
-        w = self.pid_yaw.step(yaw_err, dt)
+        self.publish_stop()
+        self.get_logger().info("Goal reached!!!", throttle_duration_sec=2.0)
 
-        # Gate forward speed if facing away
-        # (helps “turn then go” behavior)
-        heading_scale = max(0.0, math.cos(yaw_err))
-        v *= heading_scale
 
-        # Clamp
-        v = max(-self.max_lin, min(self.max_lin, v))
-        w = max(-self.max_ang, min(self.max_ang, w))
-
+    def publish_stop(self):
         cmd = TwistStamped()
-        cmd.header.stamp = now.to_msg()
-        cmd.twist.linear.x = v
-        cmd.twist.angular.z = w
+        cmd.header.stamp = self.get_clock().now().to_msg()
+        cmd.twist.linear.x = 0.0
+        cmd.twist.angular.z = 0.0
         self.cmd_pub.publish(cmd)
-        self.get_logger().info('publishing : "%s"' % cmd)
 
 
 class Test (Node):
@@ -166,7 +207,7 @@ class Test (Node):
         msg = GoalPose()
         msg.x = 5.0
         msg.y = 5.0
-        msg.theta = 2.0
+        msg.yaw = 2.0
 
         self.publisher.publish(msg=msg)
         self.get_logger().info('Publishing "%s"' % msg)

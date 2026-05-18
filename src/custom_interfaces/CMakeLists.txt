@@ -26,8 +26,8 @@ endif()
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/Num.msg"
   "msg/GoalPose.msg"
+  "msg/KalmanPose.msg"
 )
 
 ament_package()
